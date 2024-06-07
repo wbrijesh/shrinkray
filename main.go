@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"html/template"
 	"log"
 	"net/http"
@@ -28,14 +27,29 @@ var (
 	redisClient = redis.NewClient(opt)
 )
 
-func main() {
-	http.HandleFunc("/health", healthCheck)
-	http.HandleFunc("/new", createShortLink)
-	http.HandleFunc("/", findShortLink)
-	http.HandleFunc("/temp", handler)
+func init() {
+	envs := []string{
+		"PORT",
+		"REDIS_CONNECTION_STRING",
+		"RATE_LIMIT_REQ_PER_SEC",
+	}
 
-	fmt.Println("Server is running on port " + port)
-	log.Fatal(http.ListenAndServe(":"+port, nil))
+	for _, env := range envs {
+		if !utils.VerifyEnv(env) {
+			log.Fatalf("Environment variable %s is required", env)
+		}
+	}
+}
+
+func main() {
+	reqMux := http.NewServeMux()
+
+	reqMux.HandleFunc("/health", healthCheck)
+	reqMux.HandleFunc("/new", createShortLink)
+	reqMux.HandleFunc("/", findShortLink)
+
+	log.Println("Server is running on port " + port)
+	log.Fatal(http.ListenAndServe(":"+port, utils.Limit(reqMux)))
 }
 
 func healthCheck(w http.ResponseWriter, r *http.Request) {
@@ -82,29 +96,6 @@ func createShortLink(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// func findShortLink(w http.ResponseWriter, r *http.Request) {
-// 	if r.Method != http.MethodGet {
-// 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
-// 		return
-// 	}
-// 	path := r.URL.Path
-// 	alias := path[len("/"):]
-// 	if alias == "" {
-// 		http.Error(w, "Alias is required", http.StatusBadRequest)
-// 		return
-// 	}
-//
-// 	res, err := redisClient.Get(ctx, alias).Result()
-// 	if err != nil {
-// 		w.Header().Set("Content-Type", "application/json")
-// 		json.NewEncoder(w).Encode(map[string]string{"error": "Alias not found"})
-// 		return
-// 	} else {
-// 		http.Redirect(w, r, res, http.StatusSeeOther)
-// 		return
-// 	}
-// }
-
 func findShortLink(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
@@ -113,14 +104,15 @@ func findShortLink(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
 	alias := path[len("/"):]
 	if alias == "" {
-		http.Error(w, "Alias is required", http.StatusBadRequest)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"error": "Alias is required"})
 		return
 	}
 
-	// Parse the HTML template file
 	tmpl, err := template.ParseFiles("redirect.html")
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"error": "Error parsing template" + err.Error()})
 		return
 	}
 
@@ -131,7 +123,8 @@ func findShortLink(w http.ResponseWriter, r *http.Request) {
 		}
 		err = tmpl.Execute(w, data)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]string{"error": "Error executing template: " + err.Error()})
 		}
 		return
 	} else {
@@ -140,28 +133,9 @@ func findShortLink(w http.ResponseWriter, r *http.Request) {
 		}
 		err = tmpl.Execute(w, data)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]string{"error": "Error executing template: " + err.Error()})
 		}
 		return
-	}
-}
-
-func handler(w http.ResponseWriter, r *http.Request) {
-	// Define your dynamic data
-	data := PageData{
-		Message: "Hello, World!",
-	}
-
-	// Parse the HTML template file
-	tmpl, err := template.ParseFiles("index.html")
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	// Execute the template with the dynamic data
-	err = tmpl.Execute(w, data)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
