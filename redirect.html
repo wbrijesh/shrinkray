@@ -1,0 +1,45 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Redirection Notice</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body class="m-5 flex flex-col gap-5">
+    <div class="bg-gray-200 px-4 py-2">
+      <h1 class="text-xl font-medium">Redirection Notice</h1>
+    </div>
+    <div class="flex flex-col gap-2">
+      <p class="text-lg font-light">
+        You are being redirected to an external site (<a
+          class="text-blue-700 underline font-medium"
+          href="{{.Message}}"
+          >{{.Message}}</a
+        >)
+      </p>
+      <p class="text-lg font-light" id="counter">Redirecting in 10 seconds</p>
+      <p class="text-lg font-light">
+        Powered by
+        <a
+          class="text-blue-700 underline font-medium"
+          href="https://github.com/wbrijesh/shrinkray"
+          >Shrinkray</a
+        >
+      </p>
+    </div>
+  </body>
+  <script>
+    setTimeout(function () {
+      window.location.href = "{{.Message}}";
+    }, 10000);
+
+    var counter = 10;
+    var interval = setInterval(function () {
+      counter--;
+      document.getElementById("counter").innerText =
+        "Redirecting in " + counter + " seconds";
+      if (counter === 0) {
+        clearInterval(interval);
+      }
+    }, 1000);
+  </script>
+</html>
